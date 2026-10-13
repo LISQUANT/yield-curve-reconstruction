@@ -1,0 +1,27 @@
+{
+  "review_date": "2026-10-12",
+  "stage": "01_model",
+  "data_kind": "synthetic",
+  "official_validation": false,
+  "core_changed": false,
+  "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+  "tests": "43 passed",
+  "lint": "All checks passed",
+  "dependency_check": "No broken requirements found",
+  "output_checks": [
+    "301 unique maturities",
+    "selected rows match full CSV",
+    "all metadata artifact hashes match",
+    "five-year row matches independent math calculation"
+  ],
+  "five_year": {
+    "x1": 2.7777777777777777,
+    "x2": 0.7142857142857143,
+    "loading1": 0.3376164513520381,
+    "loading2": 0.7146416766202657,
+    "spot_decimal": 0.03189043225529862,
+    "discount_factor": 0.8526107542309511,
+    "forward_continuous_decimal": 0.034041867256589954
+  },
+  "initial_test_failure": "New tiny-maturity test wrongly treated positive maturities as exactly zero; replaced constant expectation with analytic first-order expansion, retaining tighter 1e-16 tolerance. No model fix needed."
+}

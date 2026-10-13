@@ -1,0 +1,38 @@
+{
+  "observation_date": "2026-10-02",
+  "raw_sha256": "2ebdb0a0e94c586445ab9255c7c2d4809f2cdb3776493388453ebb9587ec4342",
+  "reference_count": 30,
+  "grid_count": 301,
+  "max_absolute_error_bp": 0.004643039657609149,
+  "mean_absolute_error_bp": 0.0029525224761947633,
+  "rmse_bp": 0.003199358372719661,
+  "validation_passed": true,
+  "versions": {
+    "python": "3.12.14",
+    "numpy": "2.5.4",
+    "pandas": "3.0.6",
+    "matplotlib": "3.11.2"
+  },
+  "code_sha256": {
+    "yieldcurves/svensson.py": "48df3796b423b2d5cfd0f0c6d230e21632645ad78cd1c600d520f84c28c5fdc2",
+    "yieldcurves/validation.py": "9af0a465d2288e9c2c1fee840feb765a1f830e5034383da9ea5a9d1441fc00c6",
+    "yieldcurves/sources/fed.py": "2e4cf9601b8d38a19e489acba94089eb8d84d0c4f3626ad2f679d085e549bba0",
+    "make_report.py": "0a5735f7ff3ee6d0a2346e43700921822fe89702a3c675734f60686c2c0ad571",
+    "yieldcurves/plots.py": "a03696d965fc711848a44d1ba833c9e883ac74b97235682209c5e5003cebf37a"
+  },
+  "review_date": "2026-10-13",
+  "base_commit": "c3887563b330dd6432a12549c3528cb38e4d512a",
+  "branch": "codex/manu-fed-integration",
+  "tests_passed": 70,
+  "lint": "passed",
+  "pip_check": "passed",
+  "core_ast_identical_to_local_starter": true,
+  "offline_socket_guard": "passed",
+  "offline_artifacts_byte_identical": true,
+  "numerical_tables_identical_to_prior_fed_run": true,
+  "direct_download_smoke": "HTTP 403; immediate actionable error; no snapshot written",
+  "verified_import": "passed; imported bytes identical to original",
+  "snapshot_retrieval_date": "2026-10-12",
+  "source_url": "https://www.federalreserve.gov/data/yield-curve-tables/feds200628.csv",
+  "cli_failure_and_scope_checks": "failed validation exits nonzero with diagnostics; unsupported Germany rejected"
+}
