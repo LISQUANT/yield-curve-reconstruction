@@ -17,4 +17,6 @@ Updated: 13 October 2026. Canonical repository integration and bounded Fed stage
 
 See verification.json and fed_validation.md. Historical records under history/
 are not evidence of this checkout. Source snapshots and full run files are local.
-Push/PR details are recorded in handoff after publication is confirmed.
+Implementation commit f0aa7c7 is pushed to codex/manu-fed-integration.
+[Pull request #1](https://github.com/LISQUANT/yield-curve-reconstruction/pull/1)
+is open for review. Main remains unchanged; no merge has been performed.

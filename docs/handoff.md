@@ -27,6 +27,13 @@ Socket-guarded replay produced byte-identical artifacts; numerical tables also
 match the prior local Fed stage. Chart inspected. Synthetic example succeeds in
 outputs/synthetic_integration. Data and outputs are ignored and not pushed.
 
+Publication: implementation commit f0aa7c73c0285af6566cf6428bfa64dc66232fa4
+is pushed to origin/codex/manu-fed-integration. Review is open at
+https://github.com/LISQUANT/yield-curve-reconstruction/pull/1.
+The connector lacked PR permission; the existing Git credential manager
+successfully created the PR through the GitHub API. Main is unchanged and
+no merge was performed. Continue on this branch for review corrections.
+
 Next: prompts/03_germany.md, implement Bundesbank with native convention and
 same-date official validation. Then extend the entry point to latest common
 complete US/DE date. Do not restart the Fed/model or block Germany on old ECB
