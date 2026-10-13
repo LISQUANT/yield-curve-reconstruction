@@ -218,7 +218,3 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-
-# Local source data and generated research outputs
-data/
-outputs/
