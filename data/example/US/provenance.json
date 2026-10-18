@@ -1,0 +1,40 @@
+{
+  "source_url": "https://www.federalreserve.gov/data/yield-curve-tables/feds200628.csv",
+  "source_page": "https://www.federalreserve.gov/data/nominal-yield-curve.htm",
+  "retrieved_at_utc": "2026-10-12T18:04:52.394012+00:00",
+  "saved_at_utc": "2026-10-18T18:44:30.617722+00:00",
+  "sha256": "a06bedbe8428b5fd530d229ccf7505d4473dd544b7d1c2966f4c57f0a5560c3e",
+  "bytes": 2077,
+  "acquisition": "Single-date excerpt of preserved official browser download",
+  "native_compounding": "continuous",
+  "rate_unit": "percent",
+  "tau_unit": "years",
+  "currency": "USD",
+  "universe": "off-the-run nominal Treasury coupon securities",
+  "release_status": "staff research product; not a Board statistical release",
+  "snapshot_rows": 1,
+  "snapshot_last_date": "2026-10-02",
+  "parent_sha256": "2ebdb0a0e94c586445ab9255c7c2d4809f2cdb3776493388453ebb9587ec4342",
+  "parent_provenance": {
+    "source_url": "https://www.federalreserve.gov/data/yield-curve-tables/feds200628.csv",
+    "source_page": "https://www.federalreserve.gov/data/nominal-yield-curve.htm",
+    "retrieved_at_utc": "2026-10-12T18:04:52.394012+00:00",
+    "sha256": "2ebdb0a0e94c586445ab9255c7c2d4809f2cdb3776493388453ebb9587ec4342",
+    "bytes": 16653918,
+    "acquisition": "official CSV link downloaded in a browser; copied without modification",
+    "direct_http_attempts": {
+      "csv": 403,
+      "html": 403
+    },
+    "data_kind": "institutional_observations",
+    "institution": "Federal Reserve Board",
+    "release_status": "staff research product; not an official Board statistical release",
+    "native_compounding": "continuous",
+    "rate_unit": "percent",
+    "tau_unit": "years",
+    "universe": "off-the-run nominal Treasury coupon securities",
+    "currency": "USD"
+  },
+  "transformation": "Original preamble, header and 2026-10-02 row retained byte for byte; other date rows omitted.",
+  "rights_url": "https://www.federalreserve.gov/disclaimer.htm"
+}

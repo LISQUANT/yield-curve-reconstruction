@@ -1,0 +1,80 @@
+{
+  "date": "2026-10-18",
+  "local_pytest": {
+    "exit_code": 0,
+    "passed": 131,
+    "seconds": 90.42
+  },
+  "local_checks": {
+    "-m ruff check .": {
+      "exit_code": 0,
+      "output": "All checks passed!\n"
+    },
+    "-m pip check": {
+      "exit_code": 0,
+      "output": "No broken requirements found.\n"
+    },
+    "scripts/run_yield_curves.py --offline --date 2026-10-02 --output-dir outputs/review_final_20261018": {
+      "exit_code": 2,
+      "output": "Observation date: 2026-10-02\nResults: outputs\\review_final_20261018\nPT benchmarks: NS\nUS: 30/30 within rounding tolerance; maximum error 0.004643 bp\nDE: 29/30 within rounding tolerance; maximum error 0.527981 bp\nReport generated with validation exceptions; see validation.csv.\n"
+    }
+  },
+  "clean_windows_install": {
+    "exit_code": 0,
+    "method": "Export of current existing versionable files, new venv, pip install -e .[dev]. Not a clone of committed HEAD; current changes remain uncommitted."
+  },
+  "clean_checks": {
+    "-m pytest -q": {
+      "exit_code": 0,
+      "output": "........................................................................ [ 54%]\n...........................................................              [100%]\n131 passed in 140.30s (0:02:20)\n",
+      "seconds": 142.12
+    },
+    "-m ruff check .": {
+      "exit_code": 0,
+      "output": "All checks passed!\n",
+      "seconds": 3.59
+    },
+    "-m pip check": {
+      "exit_code": 0,
+      "output": "No broken requirements found.\n",
+      "seconds": 0.91
+    },
+    "scripts/run_yield_curves.py --offline --date 2026-10-02 --output-dir outputs/clean_run": {
+      "exit_code": 2,
+      "output": "Observation date: 2026-10-02\nResults: outputs\\clean_run\nPT benchmarks: NS\nUS: 30/30 within rounding tolerance; maximum error 0.004643 bp\nDE: 29/30 within rounding tolerance; maximum error 0.527981 bp\nReport generated with validation exceptions; see validation.csv.\n",
+      "seconds": 14.52
+    }
+  },
+  "reproduction_byte_identical": {
+    "curves.csv": true,
+    "validation.csv": true,
+    "selected_maturities.csv": true,
+    "DE/rounding_history.csv": true,
+    "PT_benchmarks/indicative_curve.csv": true,
+    "PT_benchmarks/observations_and_residuals.csv": true,
+    "research_note.pdf": true,
+    "figures/comparison.svg": true,
+    "figures/validation.svg": true,
+    "PT_benchmarks/benchmark_yields.svg": true
+  },
+  "pdf_visual_review": {
+    "pages": 6,
+    "result": "All six final pages rendered and inspected; no missing glyphs or layout overflow. Comparison, validation, Portuguese fit and discount figures inspected."
+  },
+  "final_output": "outputs/review_final_20261018",
+  "portugal": "Six original official BPstat replies verified; NS benchmark-yield fit only; no empirical zero-coupon price calibration.",
+  "git": {
+    "branch": "codex/manu-fed-integration",
+    "main_unchanged": "c3887563b330dd6432a12549c3528cb38e4d512a",
+    "remote_mutations": false,
+    "current_changes_committed": false
+  },
+  "editorial_update_after_clean_windows_check": {
+    "scope": "PDF report generation only: methodological introduction moved before results; footers removed; financial code, data, figures and numerical tables not changed",
+    "pdf_pages": 6,
+    "pdf_filename": "outputs/review_final_20261018/research_note.pdf",
+    "pdf_sha256": "8970a3f8a3eecd7a5080bfde9ddb9469f1d5313fe7f41c3dbe37f47a05bc76d8",
+    "checked": "PDF re-generated from the original validated CSVs, six pages checked for footer text and rendered visually; numerical outputs unchanged",
+    "tests": "44 tests (test_model.py, test_validation.py, test_rounding.py) passed on the review environment. Original complete Windows result (131 tests) predates this editorial change."
+  }
+}
