@@ -1,6 +1,7 @@
 """Yield curves and published-rate comparisons."""
 
 import matplotlib
+import numpy as np
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -109,3 +110,20 @@ def plot_research(curves, validations, output):
         ax.set(xlabel="Maturity (years)", ylabel="Discount factor",
                title=f"{names[country]} | {date}")
         save_figure(fig, output / f"discount_{country}")
+
+
+def plot_calibration(curve, residuals, times, payments, provenance, observation_date,
+                     low, high, target):
+    fig, axes = plt.subplots(2, 1, figsize=(6.4, 4.5), layout="constrained")
+    axes[0].plot(curve.maturity_years, curve.spot_rate_decimal * 100, color="#800020")
+    axes[0].axvspan(0, low, color="grey", alpha=0.12, label="Outside bond maturity range")
+    if high < 30:
+        axes[0].axvspan(high, 30, color="grey", alpha=0.12)
+    axes[0].set(ylabel="Continuous spot (% p.a.)", xlabel="Years from settlement",
+                title=f"Portugal | Prices {observation_date} | Settlement {provenance['settlement_date']}")
+    axes[0].legend(frameon=False, fontsize=8)
+    maturities = np.max(np.where(payments > 0, times, 0), axis=1)
+    axes[1].scatter(maturities, residuals.price_error_per_100, color="#800020")
+    axes[1].axhline(0, color="black", linewidth=0.5)
+    axes[1].set(xlabel="Bond maturity (years from settlement)", ylabel="Price error per 100")
+    save_figure(fig, target)

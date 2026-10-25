@@ -2,16 +2,11 @@
 
 import csv
 import argparse
-from datetime import datetime, timezone
 from decimal import Decimal
-from hashlib import sha256
 from io import StringIO
-import json
 from pathlib import Path
 import re
-import time
-from urllib.error import HTTPError, URLError
-from urllib.request import urlopen
+import requests
 
 import numpy as np
 import pandas as pd
@@ -109,86 +104,40 @@ def validate_reconstruction(row):
     return result
 
 
-def download_csv(*, timeout=30, attempts=3):
-    """Download the Fed CSV with limited retries for temporary errors."""
-    if not 1 <= attempts <= 3 or not 0 < timeout <= 120:
-        raise ValueError("Use 1-3 attempts and a timeout in (0, 120] seconds.")
-    for attempt in range(attempts):
-        try:
-            with urlopen(SOURCE_URL, timeout=timeout) as response:
-                raw = response.read()
-            read_fed_csv(raw)
-            return raw
-        except HTTPError as exc:
-            if exc.code not in {429, 500, 502, 503, 504}:
-                raise RuntimeError(
-                    f"Fed HTTP {exc.code}. Download the official CSV in a browser "
-                    "and use --import-file with --expected-sha256."
-                ) from exc
-            error = exc
-        except (URLError, TimeoutError) as exc:
-            error = exc
-        if attempt + 1 < attempts:
-            time.sleep(2 ** attempt)
-    raise RuntimeError(f"Fed download failed after {attempts} attempts: {error}")
+def download_csv(*, timeout=30):
+    """Request the official file and validate its format before use."""
+    response = requests.get(SOURCE_URL, timeout=timeout)
+    response.raise_for_status()
+    raw = response.content
+    read_fed_csv(raw)
+    return raw
 
 
-def save_snapshot(raw, output, *, acquisition, retrieved_at_utc=None):
-    """Validate and save the CSV with its source details."""
+def save_snapshot(raw, output):
+    """Save a validated CSV without requiring a sidecar manifest."""
     frame = read_fed_csv(raw)
-    now = datetime.now(timezone.utc).isoformat()
-    metadata = {
-        "source_url": SOURCE_URL,
-        "source_page": "https://www.federalreserve.gov/data/nominal-yield-curve.htm",
-        "retrieved_at_utc": retrieved_at_utc,
-        "saved_at_utc": now,
-        "sha256": sha256(raw).hexdigest(), "bytes": len(raw),
-        "acquisition": acquisition, "native_compounding": "continuous",
-        "rate_unit": "percent", "tau_unit": "years", "currency": "USD",
-        "universe": "off-the-run nominal Treasury coupon securities",
-        "release_status": "staff research product; not a Board statistical release",
-        "snapshot_rows": len(frame),
-        "snapshot_last_date": frame.Date.max().date().isoformat(),
-    }
     output = Path(output)
     output.mkdir(parents=True, exist_ok=False)
     (output / "feds200628.csv").write_bytes(raw)
-    (output / "provenance.json").write_text(json.dumps(metadata, indent=2) + "\n")
-    return metadata
+    return frame
 
 
-def import_snapshot(source, expected_sha256, output):
-    """Import a CSV after checking its hash and format."""
-    raw = Path(source).read_bytes()
-    if sha256(raw).hexdigest() != expected_sha256.lower():
-        raise ValueError("Imported file differs from the expected SHA256.")
-    return save_snapshot(raw, output, acquisition="user-supplied official CSV import")
+def import_snapshot(source, output):
+    return save_snapshot(Path(source).read_bytes(), output)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Acquire a genuine Fed CSV snapshot.")
+    parser = argparse.ArgumentParser(description="Download or import the official Fed CSV.")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--download", action="store_true")
     mode.add_argument("--import-file", type=Path)
-    parser.add_argument("--expected-sha256", help="Required checksum for local import.")
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
-    if args.import_file and not args.expected_sha256:
-        parser.error("--import-file requires --expected-sha256")
     try:
-        if args.download:
-            raw = download_csv()
-            metadata = save_snapshot(
-                raw, args.output_dir, acquisition="direct HTTPS from official CSV URL",
-                retrieved_at_utc=datetime.now(timezone.utc).isoformat(),
-            )
-        else:
-            metadata = import_snapshot(
-                args.import_file, args.expected_sha256, args.output_dir
-            )
-    except (ValueError, RuntimeError, OSError) as exc:
-        parser.exit(2, f"Fed acquisition failed: {exc}\n")
-    print(json.dumps(metadata, indent=2))
+        raw = download_csv() if args.download else args.import_file.read_bytes()
+        save_snapshot(raw, args.output_dir)
+    except (ValueError, OSError, requests.RequestException) as exc:
+        parser.exit(1, f"Fed acquisition failed: {exc}\n")
 
 
 if __name__ == "__main__":

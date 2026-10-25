@@ -1,6 +1,6 @@
 """Synthetic valuation fixtures test calibration, not Portuguese market results."""
 
-from hashlib import sha256
+
 import json
 
 import numpy as np
@@ -41,14 +41,13 @@ def write_panel(folder, panel):
     bonds.to_csv(folder / "bonds.csv", index=False)
     pd.DataFrame(flows, columns=["isin", "payment_date", "amount"]).to_csv(
         folder / "cashflows.csv", index=False)
-    meta = {"source_url": "https://example.invalid/synthetic-test-only",
-            "retrieved_at_utc": "2026-10-18T12:00:00+00:00", "observation_date": "2026-10-02",
-            "settlement_date": "2026-10-06", "price_basis": "per_100_face",
-            "curve_time_basis": "ACT/365F", "cashflow_conventions": "Synthetic fixture only",
-            "data_kind": "market_observations",
-            "sha256": {p.name: sha256(p.read_bytes()).hexdigest() for p in folder.glob("*.csv")}}
-    (folder / "provenance.json").write_text(json.dumps(meta))
-    return meta
+    conventions = {"price_basis": "per_100_face", "curve_time_basis": "ACT/365F",
+                   "cashflow_conventions": "Synthetic fixture only", "data_kind": "market_observations"}
+    for name, value in conventions.items():
+        bonds[name] = value
+    bonds.to_csv(folder / "bonds.csv", index=False)
+    return conventions
+
 
 
 def test_coupon_prices_and_fit_recover_curve(panel):
@@ -86,27 +85,24 @@ def test_import_preserves_dirty_price_units_and_cashflow_times(tmp_path, panel):
     np.testing.assert_allclose(matrix, panel[2])
 
 
-@pytest.mark.parametrize("problem", ["checksum", "date", "synthetic", "currency", "duplicate", "nan_date"])
-def test_import_rejects_bad_provenance_or_panel(tmp_path, panel, problem):
-    meta = write_panel(tmp_path, panel)
-    if problem == "checksum":
-        meta["sha256"]["bonds.csv"] = "bad"
+@pytest.mark.parametrize("problem", ["units", "date", "synthetic", "currency", "duplicate", "nan_date"])
+def test_import_rejects_bad_conventions_or_panel(tmp_path, panel, problem):
+    write_panel(tmp_path, panel)
+    path = tmp_path / "bonds.csv"
+    bonds = pd.read_csv(path)
+    if problem == "units":
+        bonds["price_basis"] = "cash_currency"
     elif problem == "date":
-        meta["settlement_date"] = "2026-09-30"
+        bonds["settlement_date"] = "2026-09-30"
     elif problem == "synthetic":
-        meta["data_kind"] = "synthetic"
+        bonds["data_kind"] = "synthetic"
     elif problem == "nan_date":
-        meta["observation_date"] = "NaT"
+        bonds["observation_date"] = "NaT"
+    elif problem == "currency":
+        bonds.loc[0, "currency"] = "USD"
     else:
-        path = tmp_path / "bonds.csv"
-        bonds = pd.read_csv(path)
-        if problem == "currency":
-            bonds.loc[0, "currency"] = "USD"
-        else:
-            bonds.loc[1, "isin"] = bonds.loc[0, "isin"]
-        bonds.to_csv(path, index=False)
-        meta["sha256"]["bonds.csv"] = sha256(path.read_bytes()).hexdigest()
-    (tmp_path / "provenance.json").write_text(json.dumps(meta))
+        bonds.loc[1, "isin"] = bonds.loc[0, "isin"]
+    bonds.to_csv(path, index=False)
     with pytest.raises(ValueError):
         load_panel(tmp_path)
 
@@ -137,9 +133,8 @@ def test_workflow_includes_imported_fit_without_mixing_validation(tmp_path, pane
 
     data = tmp_path / "data"
     data.mkdir()
-    save_snapshot(synthetic_csv(), data / "us", acquisition="synthetic test fixture")
-    snapshot(data / "de")
-    (data / "snapshots.json").write_text(json.dumps({"US": "us", "DE": "de"}))
+    save_snapshot(synthetic_csv(), data / "US")
+    snapshot(data / "DE")
     source = tmp_path / "portugal"
     source.mkdir()
     write_panel(source, panel)
@@ -152,4 +147,41 @@ def test_workflow_includes_imported_fit_without_mixing_validation(tmp_path, pane
     assert set(result["validation"]) == {"US", "DE"}
     assert set(pd.read_csv(output / "curves.csv").country) == {"US", "DE"}
     assert (output / "PT/curve.csv").exists()
-    assert (output / "research_note.pdf").read_bytes().startswith(b"%PDF")
+    assert not (output / "research_note.pdf").exists()
+
+
+@pytest.mark.parametrize("format", ["legacy", "mixed", "matching"])
+def test_optional_legacy_conventions_preserve_panel(tmp_path, panel, format):
+    conventions = write_panel(tmp_path, panel)
+    expected_bonds, expected_matrix, expected_meta = load_panel(tmp_path)
+    path = tmp_path / "bonds.csv"
+    bonds = pd.read_csv(path)
+    omitted = list(conventions) if format == "legacy" else ["price_basis"] if format == "mixed" else []
+    bonds.drop(columns=omitted).to_csv(path, index=False)
+    conventions["source_url"] = "https://example.org/synthetic-test-panel"
+    (tmp_path / "provenance.json").write_text(json.dumps(conventions))
+    imported, matrix, meta = load_panel(tmp_path)
+    pd.testing.assert_frame_equal(imported[expected_bonds.columns], expected_bonds)
+    pd.testing.assert_frame_equal(matrix, expected_matrix)
+    assert {key: meta[key] for key in expected_meta if key != "source_url"} == {
+        key: value for key, value in expected_meta.items() if key != "source_url"}
+    assert meta["source_url"] == conventions["source_url"]
+
+
+@pytest.mark.parametrize("key", ["price_basis", "curve_time_basis", "cashflow_conventions",
+                                 "data_kind", "observation_date", "settlement_date"])
+def test_optional_legacy_conventions_reject_conflicts(tmp_path, panel, key):
+    write_panel(tmp_path, panel)
+    (tmp_path / "provenance.json").write_text(json.dumps({key: "conflicting value"}))
+    with pytest.raises(ValueError, match="Conflicting convention"):
+        load_panel(tmp_path)
+
+
+@pytest.mark.parametrize("value", [None, "cash_currency"])
+def test_legacy_fallback_keeps_price_unit_validation(tmp_path, panel, value):
+    write_panel(tmp_path, panel)
+    path = tmp_path / "bonds.csv"
+    pd.read_csv(path).drop(columns=["price_basis"]).to_csv(path, index=False)
+    (tmp_path / "provenance.json").write_text(json.dumps({"price_basis": value}))
+    with pytest.raises(ValueError):
+        load_panel(tmp_path)

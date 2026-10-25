@@ -1,6 +1,5 @@
 """Indicative Portuguese benchmark yields, never zero-coupon rates."""
 
-from hashlib import sha256
 import json
 from pathlib import Path
 import shutil
@@ -12,12 +11,6 @@ from scipy.optimize import least_squares
 
 def read_snapshot(folder, date):
     folder = Path(folder)
-    raw = (folder / "observations.csv").read_bytes()
-    meta = json.loads((folder / "provenance.json").read_text(encoding="utf-8"))
-    if meta.get("sha256") != sha256(raw).hexdigest():
-        raise ValueError("Benchmark snapshot checksum mismatch.")
-    if not meta.get("usage_permission") or not meta.get("quote_convention"):
-        raise ValueError("Document permission and the benchmark quote convention.")
     frame = pd.read_csv(folder / "observations.csv")
     required = ["country", "currency", "observation_date", "maturity_years",
                 "yield_percent", "source_url", "retrieved_at_utc", "quantity"]
@@ -38,12 +31,10 @@ def read_snapshot(folder, date):
             or not frame.yield_percent.between(-10, 30).all()
             or frame.maturity_years.duplicated().any() or len(frame) < 2):
         raise ValueError("Invalid benchmark maturities or percent yields.")
-    if meta.get("publisher") == "Banco de Portugal":
-        from yieldcurves.sources.bpstat import verify_snapshot
-        verify_snapshot(folder, frame, meta)
     if not frame.observation_date.eq(date).all():
-        return None, meta
-    return frame.sort_values("maturity_years").reset_index(drop=True), meta
+        return None
+    return frame.sort_values("maturity_years").reset_index(drop=True)
+
 
 
 def shape(years, parameters):
@@ -147,7 +138,7 @@ def fit_benchmarks(frame):
 
 
 def export_snapshot(folder, output, date):
-    frame, meta = read_snapshot(folder, date)
+    frame = read_snapshot(folder, date)
     if frame is None:
         return {"available": False, "reason": "No benchmark observations for the selected date."}
     curve, residuals, summary = fit_benchmarks(frame)
@@ -155,9 +146,8 @@ def export_snapshot(folder, output, date):
     output.mkdir(parents=True, exist_ok=False)
     curve.to_csv(output / "indicative_curve.csv", index=False)
     residuals.to_csv(output / "observations_and_residuals.csv", index=False)
-    for name in ["observations.csv", "provenance.json", *meta.get("source_files", {})]:
-        shutil.copyfile(Path(folder) / name, output / name)
-    summary.update({"available": True, "usage_permission": meta["usage_permission"],
+    shutil.copyfile(Path(folder) / "observations.csv", output / "observations.csv")
+    summary.update({"available": True,
                     "retrieved_at_utc": sorted(set(frame.retrieved_at_utc)),
                     "source_urls": sorted(set(frame.source_url))})
     (output / "diagnostics.json").write_text(json.dumps(summary, indent=2, allow_nan=False))

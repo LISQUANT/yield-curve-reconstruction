@@ -1,10 +1,9 @@
-"""Acquisition failure paths use synthetic fixtures and mocked network responses."""
+"""Network failures use synthetic responses, never live downloads."""
 
-from hashlib import sha256
-from io import BytesIO
-from urllib.error import HTTPError, URLError
+from types import SimpleNamespace
 
 import pytest
+import requests
 
 from test_fed import synthetic_csv
 from yieldcurves.sources import fed
@@ -13,63 +12,52 @@ from yieldcurves.sources import fed
 def test_download_success_and_timeout(monkeypatch):
     raw = synthetic_csv()
     calls = []
-
     def fetch(url, timeout):
         calls.append((url, timeout))
-        return BytesIO(raw)
-
-    monkeypatch.setattr(fed, "urlopen", fetch)
+        return SimpleNamespace(content=raw, raise_for_status=lambda: None)
+    monkeypatch.setattr(fed.requests, "get", fetch)
     assert fed.download_csv() == raw
     assert calls == [(fed.SOURCE_URL, 30)]
 
 
-def test_forbidden_is_not_retried(monkeypatch):
+@pytest.mark.parametrize("failure", [requests.HTTPError("403 Forbidden"),
+    requests.HTTPError("503 Unavailable"), requests.ConnectionError("offline"),
+    requests.Timeout("timeout")])
+def test_download_errors_are_not_hidden_or_retried(monkeypatch, failure):
     calls = []
-
-    def forbidden(*args, **kwargs):
+    def unavailable(*args, **kwargs):
         calls.append(1)
-        raise HTTPError(fed.SOURCE_URL, 403, "Forbidden", {}, None)
-
-    monkeypatch.setattr(fed, "urlopen", forbidden)
-    with pytest.raises(RuntimeError, match="--import-file"):
+        raise failure
+    monkeypatch.setattr(fed.requests, "get", unavailable)
+    with pytest.raises(type(failure), match=str(failure)):
         fed.download_csv()
     assert len(calls) == 1
 
 
-@pytest.mark.parametrize("failure", [
-    HTTPError(fed.SOURCE_URL, 503, "Unavailable", {}, None),
-    URLError("offline"), TimeoutError("timeout"),
-])
-def test_transient_retries_are_bounded(monkeypatch, failure):
-    calls, delays = [], []
-
-    def unavailable(*args, **kwargs):
-        calls.append(1)
-        raise failure
-
-    monkeypatch.setattr(fed, "urlopen", unavailable)
-    monkeypatch.setattr(fed.time, "sleep", delays.append)
-    with pytest.raises(RuntimeError, match="after 3 attempts"):
+def test_status_checked_before_parsing(monkeypatch):
+    def forbidden():
+        raise requests.HTTPError("403 Forbidden")
+    monkeypatch.setattr(fed.requests, "get", lambda *a, **k:
+                        SimpleNamespace(content=b"not csv", raise_for_status=forbidden))
+    with pytest.raises(requests.HTTPError, match="403"):
         fed.download_csv()
-    assert len(calls) == 3 and delays == [1, 2]
 
 
 def test_html_success_response_is_not_data(monkeypatch):
-    monkeypatch.setattr(fed, "urlopen", lambda *a, **k: BytesIO(b"<html>blocked</html>"))
+    monkeypatch.setattr(fed.requests, "get", lambda *a, **k:
+                        SimpleNamespace(content=b"<html>blocked</html>", raise_for_status=lambda: None))
     with pytest.raises(ValueError, match="Date header"):
         fed.download_csv()
 
 
-def test_import_checks_hash_and_preserves_bytes(tmp_path):
+def test_import_needs_no_manifest_and_preserves_bytes(tmp_path):
     source = tmp_path / "input.csv"
     raw = synthetic_csv()
     source.write_bytes(raw)
     output = tmp_path / "snapshot"
-    with pytest.raises(ValueError, match="SHA256"):
-        fed.import_snapshot(source, "0" * 64, output)
-    assert not output.exists()
-    meta = fed.import_snapshot(source, sha256(raw).hexdigest(), output)
+    frame = fed.import_snapshot(source, output)
+    assert len(frame) == 1
     assert (output / "feds200628.csv").read_bytes() == raw
-    assert meta["retrieved_at_utc"] is None
+    assert not (output / "provenance.json").exists()
     with pytest.raises(FileExistsError):
-        fed.import_snapshot(source, sha256(raw).hexdigest(), output)
+        fed.import_snapshot(source, output)

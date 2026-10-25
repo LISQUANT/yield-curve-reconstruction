@@ -1,0 +1,132 @@
+{
+  "bportugal": {
+    "fixture_kind": "synthetic; no market observations",
+    "class": "dataset",
+    "version": "2.0",
+    "source": "Bank of Portugal",
+    "extension": {
+      "series": [
+        {
+          "id": 12099454,
+          "label": "Synthetic Treasury-yield fixture"
+        }
+      ]
+    },
+    "id": [
+      "source",
+      "periodicity",
+      "maturity",
+      "unit",
+      "territory",
+      "metric",
+      "indicator",
+      "reference_date"
+    ],
+    "size": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      1
+    ],
+    "dimension": {
+      "source": {
+        "label": "Source",
+        "category": {
+          "index": [
+            "0"
+          ],
+          "label": {
+            "0": "LSEG"
+          }
+        }
+      },
+      "periodicity": {
+        "label": "Periodicity",
+        "category": {
+          "index": [
+            "0"
+          ],
+          "label": {
+            "0": "Daily"
+          }
+        }
+      },
+      "maturity": {
+        "label": "Residual maturity",
+        "category": {
+          "index": [
+            "0"
+          ],
+          "label": {
+            "0": "2 years"
+          }
+        }
+      },
+      "unit": {
+        "label": "Unit of measure",
+        "category": {
+          "index": [
+            "0"
+          ],
+          "label": {
+            "0": "Percentage"
+          }
+        }
+      },
+      "territory": {
+        "label": "Reference territory",
+        "category": {
+          "index": [
+            "0"
+          ],
+          "label": {
+            "0": "Portugal"
+          }
+        }
+      },
+      "metric": {
+        "label": "Metrics",
+        "category": {
+          "index": [
+            "0"
+          ],
+          "label": {
+            "0": "Average"
+          }
+        }
+      },
+      "indicator": {
+        "label": "Indicators",
+        "category": {
+          "index": [
+            "0"
+          ],
+          "label": {
+            "0": "Yield on TB (Treasury Bonds)"
+          }
+        }
+      },
+      "reference_date": {
+        "label": "Reference date",
+        "category": {
+          "index": [
+            "2026-10-02"
+          ],
+          "label": {
+            "2026-10-02": "2026-10-02"
+          }
+        }
+      }
+    },
+    "value": [
+      3.0
+    ],
+    "status": [
+      "F"
+    ]
+  }
+}

@@ -1,9 +1,8 @@
 """Parser fixtures are synthetic; official reference checks are separate."""
 
 import csv
-from hashlib import sha256
-from io import BytesIO, StringIO
-import json
+from io import StringIO
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -34,20 +33,13 @@ def series_bytes(key, rows=None):
 
 def snapshot(folder):
     folder.mkdir()
-    meta = {"native_compounding": "annual", "rate_unit": "percent", "tau_unit": "years",
-            "acquisition": "synthetic test fixture", "files": {}}
-    for key, series in b.SERIES.items():
-        raw = series_bytes(key)
-        (folder / (key + ".csv")).write_bytes(raw)
-        meta["files"][key + ".csv"] = {"sha256": sha256(raw).hexdigest(),
-                                        "series_id": "BBSIS." + series,
-                                        "source_url": b.API + series + "?format=csv"}
-    (folder / "provenance.json").write_text(json.dumps(meta))
+    for key in b.SERIES:
+        (folder / (key + ".csv")).write_bytes(series_bytes(key))
     return folder
 
 
 def test_flat_curve_units_and_annual_discounting(tmp_path):
-    frame, _ = b.load_snapshot(snapshot(tmp_path / "de"))
+    frame = b.load_snapshot(snapshot(tmp_path / "de"))
     row = frame.loc["2026-10-02"]
     p = b.normalize_parameters(row)
     assert p.beta0 == 0.03 and p.tau1 == 1
@@ -73,22 +65,21 @@ def test_reject_wrong_or_ambiguous_data(raw):
 
 
 def test_missing_dates_not_filled(tmp_path):
-    frame, _ = b.load_snapshot(snapshot(tmp_path / "de"))
+    frame = b.load_snapshot(snapshot(tmp_path / "de"))
     assert list(b.complete_dates(frame)) == [pd.Timestamp("2026-10-02")]
     frame.loc["2026-10-02", "TAU2"] = "0.00000"
     assert b.complete_dates(frame).empty
 
 
-def test_hash_and_wrong_series_identity(tmp_path):
+def test_saved_wrong_series_identity_rejected(tmp_path):
     folder = snapshot(tmp_path / "de")
-    p = folder / "Y01.csv"
-    p.write_bytes(p.read_bytes().replace(b"3.00", b"4.00"))
-    with pytest.raises(ValueError, match="checksum"):
+    (folder / "Y01.csv").write_bytes(series_bytes("Y02"))
+    with pytest.raises(ValueError, match="series"):
         b.load_snapshot(folder)
 
 
 def test_common_date_precedes_missing_latest(tmp_path):
-    frame, _ = b.load_snapshot(snapshot(tmp_path / "de"))
+    frame = b.load_snapshot(snapshot(tmp_path / "de"))
     us = fed.read_fed_csv(synthetic_csv())
     assert common_date(us, frame, "2026-10-18") == "2026-10-02"
     with pytest.raises(ValueError, match="No complete common"):
@@ -97,21 +88,23 @@ def test_common_date_precedes_missing_latest(tmp_path):
         common_date(us, frame, "02/10/2026")
 
 
-def test_download_validates_response(monkeypatch):
+def test_download_validates_response_and_date_filter(monkeypatch):
     calls = []
-    def fetch(url, timeout):
-        calls.append((url, timeout))
-        return BytesIO(series_bytes("BETA0"))
-    monkeypatch.setattr(b, "urlopen", fetch)
-    raw, url = b.download_series("BETA0", "2026-10-01")
-    assert raw == series_bytes("BETA0") and calls == [(url, 30)]
-    monkeypatch.setattr(b, "urlopen", lambda *a, **k: BytesIO(b"<html>blocked</html>"))
+    def fetch(url, params, timeout):
+        calls.append((url, params, timeout))
+        return SimpleNamespace(content=series_bytes("BETA0"), url=url, raise_for_status=lambda: None)
+    monkeypatch.setattr(b.requests, "get", fetch)
+    raw, url = b.download_series("BETA0", "2026-10-01", "2026-10-02")
+    assert raw == series_bytes("BETA0")
+    assert calls == [(url, {"format": "csv", "lang": "en", "startPeriod": "2026-10-01", "endPeriod": "2026-10-02"}, 30)]
+    monkeypatch.setattr(b.requests, "get", lambda *a, **k:
+                        SimpleNamespace(content=b"<html>blocked</html>", url=url, raise_for_status=lambda: None))
     with pytest.raises(ValueError):
         b.download_series("BETA0", "2026-10-01")
 
 
 def test_wrong_reference_remains_failure(tmp_path):
-    frame, _ = b.load_snapshot(snapshot(tmp_path / "de"))
+    frame = b.load_snapshot(snapshot(tmp_path / "de"))
     row = frame.loc["2026-10-02"].copy()
     row["Y01"] = "3.02"
     result = b.validate_reconstruction(row)

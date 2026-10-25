@@ -1,15 +1,10 @@
 """Daily German federal-security spot rates and Svensson parameters."""
 
 import csv
-from datetime import datetime, timezone
-from hashlib import sha256
 from io import StringIO
-import json
 from pathlib import Path
 import re
-import time
-from urllib.error import HTTPError, URLError
-from urllib.request import urlopen
+import requests
 
 import numpy as np
 import pandas as pd
@@ -48,6 +43,10 @@ def read_series(raw, key):
         raise ValueError("Bundesbank precision changed; review rounding assumptions.")
     if metadata.get("Time format code") != "P1D":
         raise ValueError("Expected daily Bundesbank data.")
+    if metadata.get("unit multiplier", "One") != "One":
+        raise ValueError("Unexpected Bundesbank unit multiplier.")
+    if key.startswith("Y") and metadata.get("unit", "Prozent") not in {"Prozent", "Percent"}:
+        raise ValueError("Expected percentage Bundesbank spot rates.")
     observations = [row for row in rows[1:]
                     if re.fullmatch(r"\d{4}-\d{2}-\d{2}", row[0])]
     if not observations:
@@ -69,67 +68,33 @@ def read_series(raw, key):
     return frame.set_index("Date")[key].sort_index()
 
 
-def download_series(key, start_date):
+def download_series(key, start_date, end_date=None):
     pd.to_datetime(start_date, format="%Y-%m-%d", errors="raise")
-    url = API + SERIES[key] + f"?format=csv&lang=en&startPeriod={start_date}"
-    for attempt in range(3):
-        try:
-            with urlopen(url, timeout=30) as response:
-                raw = response.read()
-            read_series(raw, key)
-            return raw, url
-        except HTTPError as exc:
-            if exc.code not in {429, 500, 502, 503, 504}:
-                raise RuntimeError(f"Bundesbank HTTP {exc.code}: {key}") from exc
-            error = exc
-        except (URLError, TimeoutError) as exc:
-            error = exc
-        if attempt < 2:
-            time.sleep(2 ** attempt)
-    raise RuntimeError(f"Bundesbank download failed for {key}: {error}")
+    params = {"format": "csv", "lang": "en", "startPeriod": start_date}
+    if end_date is not None:
+        pd.to_datetime(end_date, format="%Y-%m-%d", errors="raise")
+        params["endPeriod"] = end_date
+    response = requests.get(API + SERIES[key], params=params, timeout=30)
+    response.raise_for_status()
+    read_series(response.content, key)
+    return response.content, response.url
 
 
-def download_snapshot(output, start_date):
-    """Save all 36 series; a manifest is written only after validation."""
+def download_snapshot(output, start_date, end_date=None):
+    """Download the 36 series for a bounded date interval."""
     output = Path(output)
-    output.mkdir(parents=True, exist_ok=False)
-    metadata = {"source_page": SOURCE_PAGE, "native_compounding": "annual",
-                "rate_unit": "percent", "tau_unit": "years", "currency": "EUR",
-                "acquisition": "direct HTTPS from official Bundesbank API",
-                "files": {}}
+    output.mkdir(parents=True, exist_ok=True)
     for key in SERIES:
-        raw, url = download_series(key, start_date)
-        filename = key + ".csv"
-        (output / filename).write_bytes(raw)
-        metadata["files"][filename] = {
-            "series_id": "BBSIS." + SERIES[key], "source_url": url,
-            "sha256": sha256(raw).hexdigest(), "bytes": len(raw),
-            "retrieved_at_utc": datetime.now(timezone.utc).isoformat(),
-        }
-    (output / "provenance.json").write_text(json.dumps(metadata, indent=2) + "\n")
+        raw, _ = download_series(key, start_date, end_date)
+        (output / (key + ".csv")).write_bytes(raw)
     return load_snapshot(output)
 
 
 def load_snapshot(folder):
+    """Validate each original series header, frequency and precision."""
     folder = Path(folder)
-    meta = json.loads((folder / "provenance.json").read_text(encoding="utf-8"))
-    if (meta.get("native_compounding"), meta.get("rate_unit"),
-            meta.get("tau_unit")) != ("annual", "percent", "years"):
-        raise ValueError("Unexpected Bundesbank units or compounding.")
-    if set(meta["files"]) != {key + ".csv" for key in SERIES}:
-        raise ValueError("Snapshot must contain six parameters and 30 spot series.")
-    columns = []
-    for key, series in SERIES.items():
-        entry = meta["files"][key + ".csv"]
-        raw = (folder / (key + ".csv")).read_bytes()
-        if entry["sha256"] != sha256(raw).hexdigest():
-            raise ValueError(f"Bundesbank checksum mismatch: {key}")
-        if (entry["series_id"] != "BBSIS." + series
-                or not entry["source_url"].startswith(API + series + "?")):
-            raise ValueError(f"Unexpected Bundesbank provenance: {key}")
-        columns.append(read_series(raw, key))
-    frame = pd.concat(columns, axis=1).sort_index()
-    return frame, meta
+    return pd.concat([read_series((folder / (key + ".csv")).read_bytes(), key)
+                      for key in SERIES], axis=1).sort_index()
 
 
 def complete_dates(frame):

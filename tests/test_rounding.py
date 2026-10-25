@@ -1,17 +1,18 @@
-"""Rounding diagnostics must not change the strict validation result."""
+"""A synthetic double-rounding case must retain strict validation failures."""
 
-from pathlib import Path
+import pandas as pd
 
 from yieldcurves.rounding import german_history
-from yieldcurves.sources.bundesbank import load_snapshot
+from yieldcurves.sources.bundesbank import PARAMETERS
 
 
-def test_preserved_history_reproduces_review_without_relaxing_validation():
-    frame, _ = load_snapshot(Path(__file__).resolve().parents[1] / "data/example/DE")
+def test_double_rounding_does_not_relax_validation():
+    values = dict(zip(PARAMETERS, ["3.00472", "0.00000", "0.00000", "0.00000", "1.00000", "1.00000"]))
+    values.update({f"Y{year:02d}": "3.01" for year in range(1, 31)})
+    frame = pd.DataFrame([values], index=pd.to_datetime(["2026-10-02"]))
     rows, stats = german_history(frame)
-    assert stats["dates"] == 265 and stats["observations"] == 7950
-    assert stats["direct_matches"] == 7544 and stats["double_matches"] == 7928
-    assert stats["strict_failures"] == 108 and stats["dates_with_strict_failures"] == 87
-    point = rows.loc[(rows.observation_date == "2026-10-02") & (rows.maturity_years == 1)].iloc[0]
-    assert point.double_match and not point.within_tolerance
-    assert point.nearest_2dp_percent == 2.90 and point.via_3dp_then_2dp_percent == 2.91
+    assert stats["dates"] == 1 and stats["observations"] == 30
+    assert stats["direct_matches"] == 0 and stats["double_matches"] == 30
+    assert not rows.within_tolerance.iloc[0]
+    assert rows.nearest_2dp_percent.iloc[0] == 3.00
+    assert rows.via_3dp_then_2dp_percent.iloc[0] == 3.01
